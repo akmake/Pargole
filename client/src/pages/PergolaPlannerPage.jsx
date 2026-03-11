@@ -120,6 +120,10 @@ export default function PergolaPlannerPage() {
   const [isMobile, setIsMobile] = useState(false);
 
   useEffect(() => {
+    document.title = 'מתכנן פרגולות | MyVisit';
+  }, []);
+
+  useEffect(() => {
     const check = () => setIsMobile(window.innerWidth < 1024);
     check();
     window.addEventListener('resize', check);
