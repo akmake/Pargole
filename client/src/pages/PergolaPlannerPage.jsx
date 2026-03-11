@@ -25,6 +25,12 @@ const DEFAULT_PARAMS = {
   secBeamProfile: null, rafterProfile: null,
   manualRafterCount: 0, manualSecBeamCount: 0,
   manualRafterSpacingCM: 0, manualColsAlongLength: 0,
+  // v2 additions
+  wallType: 'concrete',
+  desiredShadePct: 0,
+  slatWidthCM: 10,
+  floorNumber: 0,
+  craneType: 'none',
 };
 
 // ── Bottom Sheet ─────────────────────────────────────────────────────────
@@ -125,45 +131,150 @@ export default function PergolaPlannerPage() {
     catch { return null; }
   }, [params]);
 
-  const pricing = useMemo(() => result ? calcTotalPrice(result) : null, [result]);
+  const pricingParams = useMemo(() => ({
+    floorNumber: params.floorNumber ?? 0,
+    craneType: params.craneType ?? 'none',
+  }), [params.floorNumber, params.craneType]);
+
+  const pricing = useMemo(
+    () => result ? calcTotalPrice(result, pricingParams) : null,
+    [result, pricingParams]
+  );
 
   const handleReset = useCallback(() => setParams(DEFAULT_PARAMS), []);
 
-  const handleExport = useCallback(() => {
+  // ── CSV/Excel export (BOM) ────────────────────────────────────────
+  const handleExportCSV = useCallback(() => {
     if (!result || !pricing) return;
-    const lines = [
-      'דו"ח מתכנן פרגולות',
-      '═'.repeat(40),
-      `חומר: ${result.material.label}`,
-      `מידות: ${result.input.length}×${result.input.width}×${result.input.height} מ'`,
-      `שטח: ${result.coverage.area} מ"ר`,
-      `גג: ${result.roof.label}`,
-      `צל: ${result.coverage.shadePercent}%`,
-      '',
-      'רשימת חיתוך:',
-      ...result.cutList.map(r => `  ${r.part} — ${r.profile} × ${r.qty} — ${r.lengthM}m — ₪${r.totalPrice}`),
-      '',
-      'חומרי חיבור:',
-      ...Object.values(result.hardware).filter(h => h.qty > 0).map(h => `  ${h.label} × ${h.qty}`),
-      '',
-      'עלויות:',
-      ...pricing.breakdown.map(r => `  ${r.label}: ₪${r.cost}`),
-      `  ──────`,
-      `  סה"כ: ₪${pricing.total}`,
+    const rows = [
+      ['סוג', 'פרופיל / תיאור', 'אורך (מ\')', 'כמות', 'סה"כ מ\'', 'משקל/יח\' kg', 'משקל כולל kg', 'מחיר/יח\' ₪', 'עלות כוללת ₪'],
+      ...result.cutList.map(r => [r.part, r.profile, r.lengthM, r.qty, r.totalM, r.weightPerUnit, r.totalWeight, r.pricePerUnit, r.totalPrice]),
+      [],
+      ['חומרי חיבור', 'תיאור', '', 'כמות', '', '', '', 'מחיר/יח\'', 'עלות כוללת'],
+      ...Object.values(result.hardware).filter(h => h.qty > 0).map(h => ['', h.label, '', h.qty, '', '', '', h.priceEach, h.qty * h.priceEach]),
+      [],
+      ['תמחור', '', '', '', '', '', '', '', ''],
+      ...pricing.breakdown.map(r => ['', r.label, '', '', '', '', '', '', r.cost]),
+      ['', `עבודה (${pricing.laborHours} שע')`, '', '', '', '', '', '', pricing.laborCost],
+      ['', 'סה"כ חומרים+עבודה', '', '', '', '', '', '', pricing.baseCost],
+      ['', '× 1.15 בלת"מ', '', '', '', '', '', '', pricing.withBltAm],
+      ['', '× 1.30 רווח קבלני', '', '', '', '', '', '', pricing.contractorNet],
+      ...(pricing.floorSurcharge > 0 ? [['', 'סבלות', '', '', '', '', '', '', pricing.floorSurcharge]] : []),
+      ...(pricing.craneCost > 0 ? [['', 'מנוף', '', '', '', '', '', '', pricing.craneCost]] : []),
+      ['', 'מחיר סופי ללקוח', '', '', '', '', '', '', pricing.total],
     ];
-    const blob = new Blob([lines.join('\n')], { type: 'text/plain;charset=utf-8' });
+    const csv = '\uFEFF' + rows.map(r => r.map(c => `"${String(c ?? '').replace(/"/g, '""')}"`).join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
-    a.download = `pergola-report-${Date.now()}.txt`;
+    a.download = `pergola-bom-${Date.now()}.csv`;
     a.click();
     URL.revokeObjectURL(a.href);
+  }, [result, pricing]);
+
+  // ── PDF export (cut list + layout) ───────────────────────────────
+  const handleExportPDF = useCallback(async () => {
+    if (!result || !pricing) return;
+    try {
+      const { jsPDF } = await import('jspdf');
+      const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+      const ltr = (s) => String(s ?? ''); // jsPDF has limited RTL — use LTR layout
+
+      let y = 15;
+      const line = (text, x = 15, size = 10, bold = false) => {
+        doc.setFontSize(size);
+        doc.setFont('helvetica', bold ? 'bold' : 'normal');
+        doc.text(ltr(text), x, y);
+        y += size * 0.5 + 2;
+      };
+      const hr = () => { doc.setDrawColor(200); doc.line(15, y, 195, y); y += 4; };
+
+      // Header
+      line('Pergola Design Report', 15, 16, true);
+      line(`${result.input.length}m x ${result.input.width}m x ${result.input.height}m | ${result.material.label}`, 15, 11);
+      line(`Roof: ${result.roof.label} | Install: ${result.input.installType}`, 15, 10);
+      hr();
+
+      // Structure summary
+      line('Structure Summary', 15, 12, true); y += 1;
+      line(`Columns: ${result.structure.totalColumns} (${result.structure.colsAlongLength} x ${result.structure.colRowsWidth}) | Spacing: ${result.structure.columnSpacingLength}m`);
+      line(`Main Beams: ${result.structure.mainBeamCount} x ${result.structure.mainBeamLength}m`);
+      line(`Secondary Beams: ${result.structure.numSecBeams} x ${result.structure.secBeamLength}m @ ${result.structure.secBeamSpacing}m`);
+      line(`Rafters/Slats: ${result.structure.numRafters} x ${result.structure.rafterLength}m @ ${result.structure.rafterSpacing}m`);
+      if (result.structure.slopePercent > 0) line(`Slope: ${result.structure.slopePercent}% (${result.structure.slopeAngleDeg}deg) | Rise: ${(result.structure.slopeHeightDiff * 100).toFixed(1)}cm`);
+      if (result.bracing?.required) line(`Bracing: ${result.bracing.count} pieces x ${result.bracing.pieceLengthM}m (45deg)`);
+      if (result.ledger) line(`Ledger: ${result.ledger.lengthM}m | Anchors: ${result.ledger.anchors} x ${result.ledger.anchorType}`);
+      hr();
+
+      // Cut list
+      line('Cut List (10% waste factor included)', 15, 12, true); y += 1;
+      const cols = [15, 65, 105, 125, 145, 175];
+      doc.setFontSize(8); doc.setFont('helvetica', 'bold');
+      ['Part', 'Profile', 'Length(m)', 'Qty', 'Total(m)', 'Price'].forEach((h, i) => doc.text(h, cols[i], y));
+      y += 5; doc.setFont('helvetica', 'normal');
+      for (const r of result.cutList) {
+        if (y > 260) { doc.addPage(); y = 15; }
+        doc.setFontSize(8);
+        [r.part, r.profile, String(r.lengthM), String(r.qty), String(r.totalM), `NIS ${r.totalPrice}`]
+          .forEach((v, i) => doc.text(ltr(v), cols[i], y));
+        y += 4.5;
+      }
+      hr();
+
+      // Hardware BOM
+      if (y > 230) { doc.addPage(); y = 15; }
+      line('Hardware BOM', 15, 12, true); y += 1;
+      for (const h of Object.values(result.hardware).filter(h => h.qty > 0)) {
+        if (y > 265) { doc.addPage(); y = 15; }
+        doc.setFontSize(8);
+        doc.text(ltr(h.label), 15, y);
+        doc.text(`x${h.qty}`, 130, y);
+        doc.text(`NIS ${(h.qty * h.priceEach).toFixed(0)}`, 175, y);
+        y += 4.5;
+      }
+      hr();
+
+      // Pricing
+      if (y > 220) { doc.addPage(); y = 15; }
+      line('Pricing (Formula: (Mat+Labor) x 1.15 x 1.30)', 15, 12, true); y += 1;
+      line(`Materials total: NIS ${pricing.totalMaterialCost.toFixed(0)}`);
+      line(`Labor (${pricing.laborHours}h x 250): NIS ${pricing.laborCost.toFixed(0)}`);
+      line(`x 1.15 contingency: NIS ${pricing.withBltAm.toFixed(0)}`);
+      line(`x 1.30 profit: NIS ${pricing.contractorNet.toFixed(0)}`);
+      if (pricing.floorSurcharge > 0) line(`Floor surcharge: NIS ${pricing.floorSurcharge}`);
+      if (pricing.craneCost > 0) line(`Crane: NIS ${pricing.craneCost}`);
+      y += 2;
+      doc.setFontSize(13); doc.setFont('helvetica', 'bold');
+      doc.text(`TOTAL PRICE: NIS ${pricing.total.toFixed(0)}`, 15, y);
+      y += 8;
+
+      // Warnings
+      if (result.warnings?.length) {
+        if (y > 230) { doc.addPage(); y = 15; }
+        line('Warnings & Notes', 15, 12, true); y += 1;
+        for (const w of result.warnings) {
+          doc.setFontSize(8); doc.setFont('helvetica', 'normal');
+          const wrapped = doc.splitTextToSize(ltr(w), 175);
+          doc.text(wrapped, 15, y);
+          y += wrapped.length * 4.5;
+        }
+      }
+
+      doc.save(`pergola-report-${Date.now()}.pdf`);
+    } catch (err) {
+      console.error('PDF export failed:', err);
+    }
   }, [result, pricing]);
 
   const handleShare = useCallback(async () => {
     if (navigator.share) {
       try {
-        await navigator.share({ title: 'הפרגולה שלי', text: `פרגולה ${params.length}×${params.width}m — ${pricing ? formatCurrency(pricing.total) : ''}`, url: window.location.href });
-      } catch {}
+        await navigator.share({
+          title: 'הפרגולה שלי',
+          text: `פרגולה ${params.length}×${params.width}m — ${pricing ? formatCurrency(pricing.total) : ''}`,
+          url: window.location.href,
+        });
+      } catch (_) { /* cancelled */ }
     }
   }, [params, pricing]);
 
@@ -192,8 +303,13 @@ export default function PergolaPlannerPage() {
               <Button variant="ghost" size="sm" className="text-neutral-500" onClick={handleReset}>
                 <RotateCcw className="w-4 h-4" />
               </Button>
-              <Button variant="ghost" size="sm" className="text-neutral-500" onClick={handleExport}>
+              <Button variant="ghost" size="sm" className="text-neutral-500" onClick={handleExportCSV} title="ייצוא BOM ל-CSV">
                 <Download className="w-4 h-4" />
+                <span className="text-[10px] mr-1">CSV</span>
+              </Button>
+              <Button variant="ghost" size="sm" className="text-neutral-500" onClick={handleExportPDF} title="ייצוא PDF">
+                <Download className="w-4 h-4" />
+                <span className="text-[10px] mr-1">PDF</span>
               </Button>
             </div>
           </div>
@@ -261,7 +377,7 @@ export default function PergolaPlannerPage() {
 
             {activeView === 'summary' && (
               <div className="bg-white rounded-2xl shadow-sm border border-neutral-200/60 p-5">
-                <MaterialSummary result={result} />
+                <MaterialSummary result={result} pricingParams={pricingParams} />
               </div>
             )}
           </div>
@@ -293,8 +409,11 @@ export default function PergolaPlannerPage() {
             <button onClick={handleShare} className="p-2 rounded-full hover:bg-neutral-100">
               <Share2 className="w-4 h-4 text-neutral-500" />
             </button>
-            <button onClick={handleExport} className="p-2 rounded-full hover:bg-neutral-100">
+            <button onClick={handleExportCSV} className="p-2 rounded-full hover:bg-neutral-100" title="CSV">
               <Download className="w-4 h-4 text-neutral-500" />
+            </button>
+            <button onClick={handleExportPDF} className="p-2 rounded-full hover:bg-neutral-100" title="PDF">
+              <Download className="w-4 h-4 text-emerald-600" />
             </button>
           </div>
         </div>
@@ -338,7 +457,7 @@ export default function PergolaPlannerPage() {
 
         {activeView === 'summary' && (
           <div className="bg-white rounded-2xl p-4 shadow-sm">
-            <MaterialSummary result={result} />
+            <MaterialSummary result={result} pricingParams={pricingParams} />
           </div>
         )}
       </div>

@@ -2,13 +2,14 @@ import { useMemo, useState } from 'react';
 import {
   MATERIALS, INSTALLATION_TYPES, ROOF_TYPES, FOUNDATION_TYPES,
   WIND_ZONES, FINISHES, LIGHTING_OPTIONS, SIDE_OPTIONS, GUTTER_TYPES,
+  WALL_TYPES,
 } from '@/utils/pergolaEngine';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
 import {
   Building2, Ruler, Palette, Wind, Droplets,
   Lightbulb, PanelTop, Columns3, Layers, Shell, DoorOpen,
-  ChevronDown, Grid3X3, Hash,
+  ChevronDown, Grid3X3, Hash, Sun, Truck,
 } from 'lucide-react';
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
@@ -214,16 +215,56 @@ export default function PergolaConfigurator({ params, onChange, result }) {
       {/* ── Installation ──────────────────────────────────────────── */}
       <Section icon={Building2} title="סוג התקנה" defaultOpen={false}>
         <SelectField label="סוג" value={params.installType} onChange={v => set('installType', v)} options={INSTALLATION_TYPES} />
+        {/* Wall type — relevant for wall-mounted ledger anchor selection (spec §1.1) */}
+        {(params.installType === 'wallMounted' || params.installType === 'cornerMounted') && (
+          <SelectField label="סוג קיר (לבחירת עוגן)" value={params.wallType || 'concrete'} onChange={v => set('wallType', v)} options={WALL_TYPES} />
+        )}
+        {params.installType === 'suspended' && (
+          <div className="p-2.5 rounded-xl bg-amber-50 border border-amber-200 text-[11px] text-amber-800">
+            ⚠ פרגולה תלויה — נדרש חיזוק קיר ייעודי. ראה אזהרות בסיכום.
+          </div>
+        )}
       </Section>
 
       {/* ── Roof ──────────────────────────────────────────────────── */}
       <Section icon={PanelTop} title="גג">
         <SelectField label="כיסוי" value={params.roofType} onChange={v => set('roofType', v)} options={ROOF_TYPES} />
         {ROOF_TYPES[params.roofType]?.needsDrainage && (
-          <NumberInput label="שיפוע ניקוז" value={params.slopePercent} onChange={v => set('slopePercent', v)} min={1} max={8} step={0.5} unit="%" />
+          <>
+            <NumberInput label="שיפוע ניקוז" value={params.slopePercent} onChange={v => set('slopePercent', v)} min={1} max={15} step={0.5} unit="%" />
+            {params.slopePercent < (ROOF_TYPES[params.roofType]?.minSlopePercent ?? 0) && (
+              <div className="text-[10px] text-red-600 font-medium">
+                ⚠ שיפוע מינימלי נדרש: {ROOF_TYPES[params.roofType].minSlopePercent}%
+              </div>
+            )}
+          </>
         )}
         <NumberInput label="שליפה (אוברהנג)" value={params.overhangCM} onChange={v => set('overhangCM', v)} min={0} max={60} step={5} unit='ס"מ' />
       </Section>
+
+      {/* ── Shade % for open/dense slats (spec §3.1) ─────────────── */}
+      {(params.roofType === 'openSlats' || params.roofType === 'denseSlats') && (
+        <Section icon={Sun} title="הצללה" defaultOpen={false}>
+          <NumberInput
+            label="אחוז הצללה מבוקש"
+            value={params.desiredShadePct || (ROOF_TYPES[params.roofType]?.shadeFactor * 100 ?? 55)}
+            onChange={v => set('desiredShadePct', v)}
+            min={20} max={90} step={5} unit="%"
+          />
+          <NumberInput
+            label="רוחב שלב"
+            value={params.slatWidthCM || 10}
+            onChange={v => set('slatWidthCM', v)}
+            min={4} max={25} step={1} unit='ס"מ'
+          />
+          {result?.roofDetails?.slatSpacingCM != null && (
+            <div className="text-[10px] text-emerald-700 bg-emerald-50 rounded-lg px-2 py-1.5">
+              מרווח מחושב בין שלבים: <b>{result.roofDetails.slatSpacingCM} ס"מ</b>
+              {' '}| הצללה בפועל: <b>{result.roofDetails.slatActualShadePct}%</b>
+            </div>
+          )}
+        </Section>
+      )}
 
       {/* ── Structure Control (NEW!) ──────────────────────────────── */}
       <Section icon={Grid3X3} title="שליטה במבנה">
@@ -304,6 +345,47 @@ export default function PergolaConfigurator({ params, onChange, result }) {
       {/* ── Gutters ───────────────────────────────────────────────── */}
       <Section icon={Droplets} title="מרזבים" defaultOpen={false}>
         <SelectField label="מרזב" value={params.gutterType} onChange={v => set('gutterType', v)} options={GUTTER_TYPES} />
+      </Section>
+
+      {/* ── Floor / Crane (spec §5.4–5.5) ────────────────────────── */}
+      <Section icon={Truck} title="לוגיסטיקת התקנה" defaultOpen={false}>
+        <IntInput
+          label="קומת ההתקנה"
+          value={params.floorNumber ?? 0}
+          onChange={v => set('floorNumber', v)}
+          min={0} max={15}
+          unit="קומה"
+          hint="0 = קרקע"
+        />
+        {(params.floorNumber ?? 0) > 4 && (
+          <div className="text-[10px] text-red-600 font-medium bg-red-50 rounded-lg px-2 py-1.5">
+            ⚠ מעל קומה 4 — מנוף חובה (סבלות ידנית לא אפשרית)
+          </div>
+        )}
+        {(params.floorNumber ?? 0) > 0 && (params.floorNumber ?? 0) <= 4 && (
+          <div className="space-y-1">
+            <span className="text-[11px] text-neutral-500">סוג מנוף (אופציונלי)</span>
+            <div className="flex gap-1.5">
+              {[
+                { id: 'none',     label: 'ללא' },
+                { id: 'standard', label: 'זרוע (₪800)' },
+                { id: 'heavy',    label: 'סל (₪1,500)' },
+              ].map(opt => (
+                <button
+                  key={opt.id}
+                  onClick={() => set('craneType', opt.id)}
+                  className={`flex-1 text-[10px] py-1.5 rounded-lg border transition-all ${
+                    (params.craneType ?? 'none') === opt.id
+                      ? 'bg-emerald-600 text-white border-emerald-600'
+                      : 'bg-white text-neutral-600 border-neutral-200 hover:bg-neutral-50'
+                  }`}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
       </Section>
     </div>
   );
