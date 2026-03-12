@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 
 export default function NotFoundPage() {
   useEffect(() => {
-    document.title = '404 – עמוד לא נמצא | MyVisit';
+    document.title = '404 – עמוד לא נמצא | PergoCalc';
   }, []);
 
   return (

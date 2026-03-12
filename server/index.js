@@ -47,7 +47,7 @@ app.get('/api/health', (req, res) => {
 app.use('/api/system', systemRoutes);
 
 app.get('/', (req, res) => {
-  res.send('MyVisit API is running');
+  res.send('PergoCalc API is running');
 });
 
 app.use('*', (req, res) => {

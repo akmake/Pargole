@@ -173,6 +173,12 @@ function emptyResult(stockLen) {
   };
 }
 
+// ── Public: pack with any custom stock length ─────────────────────────
+export function packCustom(pieces, stockLength) {
+  if (!pieces || pieces.length === 0) return emptyResult(stockLength);
+  return packWithStock(pieces, stockLength);
+}
+
 // ── Public: generate full cut plan from cutList ───────────────────────
 /**
  * Groups cut-list rows by profile, runs bin packing per profile,
@@ -202,4 +208,46 @@ export function generateCutPlan(cutList, materialCategory) {
     pieces: pieces.map(p => +p.toFixed(3)),
     packResult: packFn(pieces),
   }));
+}
+
+// ── Public: generate combined cut plan for multiple pergolas ──────────
+/**
+ * Merges cut lists from multiple saved pergolas, groups by profile,
+ * and runs bin packing with optional custom stock lengths.
+ *
+ * @param {Array}  projects        - [{ cutList, materialCategory }]
+ * @param {Object} stockOverrides  - { aluminum: number|null, wood: number|null }
+ *                                   null = use default/auto logic
+ * @returns {Array}                - [{ profile, materialCategory, pieces, packResult }]
+ */
+export function generateProjectCutPlan(projects, stockOverrides = {}) {
+  if (!projects || projects.length === 0) return [];
+
+  // Merge all cuts grouped by profile + materialCategory
+  const byKey = {};
+  for (const { cutList, materialCategory } of projects) {
+    if (!cutList) continue;
+    for (const item of cutList) {
+      const key = `${item.profile}||${materialCategory}`;
+      if (!byKey[key]) byKey[key] = { profile: item.profile, materialCategory, pieces: [] };
+      for (let i = 0; i < item.qty; i++) {
+        byKey[key].pieces.push(item.lengthM);
+      }
+    }
+  }
+
+  return Object.values(byKey).map(({ profile, materialCategory, pieces }) => {
+    const isWood = materialCategory === 'wood';
+    let packResult;
+
+    if (isWood) {
+      const override = stockOverrides.wood;
+      packResult = override ? packCustom(pieces, override) : packWood(pieces);
+    } else {
+      const stockLen = stockOverrides.aluminum || ALUMINUM_STOCK_M;
+      packResult = packCustom(pieces, stockLen);
+    }
+
+    return { profile, materialCategory, pieces: pieces.map(p => +p.toFixed(3)), packResult };
+  });
 }

@@ -1,16 +1,16 @@
 import { lazy, Suspense } from 'react';
 import { Routes, Route } from 'react-router-dom';
-import Layout from './components/layout/Layout';
-import HomePage from './pages/HomePage';
-import NotFoundPage from './pages/NotFoundPage';
 import ErrorBoundary from './components/ErrorBoundary';
 
+const HomePage          = lazy(() => import('./pages/HomePage'));
+const ProjectPage       = lazy(() => import('./pages/ProjectPage'));
 const PergolaPlannerPage = lazy(() => import('./pages/PergolaPlannerPage'));
+const NotFoundPage      = lazy(() => import('./pages/NotFoundPage'));
 
 function PageLoader() {
   return (
-    <div className="flex min-h-[50vh] items-center justify-center text-slate-500" role="status" aria-live="polite">
-      טוען עמוד...
+    <div className="flex min-h-[50vh] items-center justify-center text-gray-400" role="status" aria-live="polite">
+      טוען...
     </div>
   );
 }
@@ -20,11 +20,10 @@ export default function App() {
     <ErrorBoundary>
       <Suspense fallback={<PageLoader />}>
         <Routes>
-          <Route path="/" element={<Layout />}>
-            <Route index element={<HomePage />} />
-          </Route>
-          <Route path="/pergola" element={<PergolaPlannerPage />} />
-          <Route path="*" element={<NotFoundPage />} />
+          <Route path="/"                                         element={<HomePage />} />
+          <Route path="/project/:projectId"                       element={<ProjectPage />} />
+          <Route path="/project/:projectId/pergola/:pergolaId"    element={<PergolaPlannerPage />} />
+          <Route path="*"                                         element={<NotFoundPage />} />
         </Routes>
       </Suspense>
     </ErrorBoundary>
