@@ -4,7 +4,7 @@ import { Separator } from '@/components/ui/separator';
 import { Progress } from '@/components/ui/progress';
 import {
   ShieldCheck, Ruler, Sun, Wind, Droplets, Weight, DollarSign,
-  TrendingUp, Info, Clock, Wrench, ArrowRight,
+  TrendingUp, Info, Clock, Wrench, ArrowRight, CheckCircle2, XCircle,
 } from 'lucide-react';
 
 function StatCard({ icon: Icon, label, value, sub, color = 'blue' }) {
@@ -67,6 +67,49 @@ export default function MaterialSummary({ result, pricingParams = {} }) {
           <span>גימור: <b>{finishData.label}</b></span>
         </div>
       </div>
+
+      {/* ── Deflection checks (δ = 5wL⁴/384EI vs L/200) ───────────── */}
+      {result.deflectionChecks?.length > 0 && (
+        <>
+          <Separator />
+          <div>
+            <h3 className="text-sm font-bold mb-2">בדיקת שקיעה (Deflection) — סף L/200</h3>
+            <div className="space-y-1.5">
+              {result.deflectionChecks.map((dc, i) => (
+                <div
+                  key={i}
+                  className={`flex items-center justify-between rounded-lg border px-3 py-2 text-xs ${
+                    dc.ok ? 'bg-emerald-50 border-emerald-200' : 'bg-red-50 border-red-200'
+                  }`}
+                >
+                  <div className="flex items-center gap-2">
+                    {dc.ok
+                      ? <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                      : <XCircle className="w-4 h-4 text-red-600 shrink-0" />}
+                    <span className="font-semibold">{dc.element}</span>
+                    <span className="text-neutral-500">מפתח {dc.spanM} מ' · עומס {dc.lineLoadKgM} ק"ג/מ'</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className={dc.ok ? 'text-emerald-700' : 'text-red-700 font-bold'}>
+                      {dc.deflectionMM} מ"מ / {dc.limitMM} מ"מ
+                    </span>
+                    <div className="w-16 h-1.5 rounded-full bg-white overflow-hidden border border-neutral-200">
+                      <div
+                        className={`h-full ${dc.ok ? 'bg-emerald-500' : 'bg-red-500'}`}
+                        style={{ width: `${Math.min(100, dc.utilization)}%` }}
+                      />
+                    </div>
+                    <span className="text-[10px] text-neutral-400 w-8">{dc.utilization}%</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <p className="text-[10px] text-neutral-400 mt-1.5">
+              חישוב אינדיקטיבי לקורה נסמכת בעומס אחיד (עומס תכנון כולל מקדם ביטחון 1.25). אינו תחליף לחישוב סטטי של מהנדס.
+            </p>
+          </div>
+        </>
+      )}
 
       <Separator />
 

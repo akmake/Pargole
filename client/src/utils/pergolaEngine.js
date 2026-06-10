@@ -17,6 +17,7 @@
  */
 
 import profilesData from '@/data/profilesData.json';
+import { detectClashes } from './clashDetection.js';
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // MATERIAL DATABASE
@@ -259,9 +260,9 @@ function slatPitchFromShade(slatWidthCM, shadePct) {
  * Count open profile ends for end-cap BOM (aluminium/steel only).
  * Spec §5.2: count every exposed open end of every hollow profile.
  */
-function countOpenEnds({ totalCols, mainBeamCount, numSec, numRaft, isWall }) {
+function countOpenEnds({ totalCols, mainBeamCount, numSec, numRaft, ledgerCount = 0 }) {
   const colEnds  = totalCols * 2;
-  const mbEnds   = mainBeamCount * (isWall ? 1 : 2); // one wall-end is flush → no cap
+  const mbEnds   = mainBeamCount * 2 + ledgerCount * 2; // ledger has 2 exposed ends
   const sbEnds   = numSec * 2;
   const rfEnds   = numRaft * 2;
   return colEnds + mbEnds + sbEnds + rfEnds;
@@ -295,6 +296,35 @@ function estimateLaborHours({ totalCols, mainBeamCount, numSecBeams, numRafters,
   if (hasLighting) h += 3;
 
   return Math.round(h);
+}
+
+/**
+ * Deflection check — simply-supported beam under uniform load:
+ *   δ = 5·w·L⁴ / (384·E·I)      limit: L/200
+ *
+ * @param {number} spanM        clear span in metres
+ * @param {number} tributaryM   tributary width the member carries, metres
+ * @param {number} areaLoadKgM2 design load (dead+live×safety) in kg/m²
+ * @param {object} prof         profile ({ momentOfInertia } in cm⁴)
+ * @param {number} elasticMPa   E in MPa (N/mm²)
+ */
+function checkDeflection({ element, spanM, tributaryM, areaLoadKgM2, prof, elasticMPa }) {
+  if (!spanM || spanM <= 0 || !prof?.momentOfInertia) return null;
+  const wNm   = areaLoadKgM2 * tributaryM * 9.81;      // line load N/m
+  const E     = elasticMPa * 1e6;                       // Pa
+  const I     = prof.momentOfInertia * 1e-8;            // cm⁴ → m⁴
+  const defM  = (5 * wNm * spanM ** 4) / (384 * E * I);
+  const defMM   = +(defM * 1000).toFixed(1);
+  const limitMM = +((spanM * 1000) / 200).toFixed(1);
+  return {
+    element,
+    spanM: +spanM.toFixed(2),
+    lineLoadKgM: +(areaLoadKgM2 * tributaryM).toFixed(1),
+    deflectionMM: defMM,
+    limitMM,
+    utilization: limitMM > 0 ? +(defMM / limitMM * 100).toFixed(0) : 0,
+    ok: defMM <= limitMM,
+  };
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -437,7 +467,9 @@ export function calculatePergola(params) {
   }
 
   // ── Main beams ─────────────────────────────────────────────────────────
-  const mainBeamCount = isSuspended ? 2 : (colRowsW + (isWall ? 1 : 0));
+  // Ledger is counted separately (its own cut-list row + wall anchors) —
+  // do NOT include it here, otherwise the BOM double-counts one beam.
+  const mainBeamCount = isSuspended ? 2 : colRowsW;
   const mainBeamLen   = totalRoofL;
 
   // ── Secondary beams ────────────────────────────────────────────────────
@@ -469,6 +501,36 @@ export function calculatePergola(params) {
     slatActualShadePct = +(slatWidthCM / pitchCM * 100).toFixed(1);
   }
   if (numRaft > 1) raftSpacing = +(W / (numRaft - 1) / 100).toFixed(2);
+
+  // ── Element-overlap sanity checks (manual overrides can break geometry) ─
+  const raftFaceW = roofType === 'louvers' ? 16 : raftProf.w;
+  if (numRaft > 1 && roofType !== 'louvers' && raftSpacing * 100 < raftProf.w) {
+    warnings.push(
+      `⚠ ${numRaft} שלבים ברוחב ${widthM} מ' גורמים לחפיפה פיזית (מרווח ${(raftSpacing * 100).toFixed(1)} ס"מ < רוחב פרופיל ${raftProf.w} ס"מ) — הפחת כמות שלבים`
+    );
+  } else if (numRaft > 1 && roofType !== 'louvers' && (raftSpacing * 100 - raftFaceW) < 1) {
+    warnings.push(
+      `ℹ מרווח אוויר בין שלבים קטן מ-1 ס"מ — בדוק שזו הכוונה (הצללה כמעט מלאה)`
+    );
+  }
+  if (numSec > 1 && secSpacing * 100 < secProf.w) {
+    warnings.push(
+      `⚠ ${numSec} קורות משניות באורך ${lengthM} מ' גורמות לחפיפה פיזית — הפחת כמות`
+    );
+  }
+  if (!isSuspended && colsL > 1 && colSpacingL * 100 < colProf.w) {
+    warnings.push(
+      `⚠ ${colsL} עמודים לאורך ${lengthM} מ' גורמים לחפיפה פיזית — הפחת כמות עמודים`
+    );
+  }
+  // Reported shade is computed from slatWidthCM — flag when it does not match
+  // the actual rafter profile width (the rendered/real shade will differ).
+  if (['openSlats', 'denseSlats'].includes(roofType) && manualRafterCount === 0 && manualRafterSpacingCM === 0
+      && Math.abs(slatWidthCM - raftProf.w) > 0.5) {
+    warnings.push(
+      `ℹ רוחב שלב לחישוב הצללה (${slatWidthCM} ס"מ) שונה מרוחב הפרופיל שנבחר (${raftProf.w} ס"מ) — אחוז ההצללה בפועל יהיה שונה`
+    );
+  }
 
   // ── Roofing panels — overlap calculation (spec §3.2) ──────────────────
   let roofPanelData = null;
@@ -535,14 +597,44 @@ export function calculatePergola(params) {
   const sw = secProf.weightPerMeter  * secLen;
   const rw = numRaft > 0 ? raftProf.weightPerMeter * raftLen : 0;
   const bw = needsBracing ? colProf.weightPerMeter * bracingPieceM * bracingCount : 0;
+  const lw = ledgerLengthM > 0 ? mainProf.weightPerMeter * ledgerLengthM : 0;
 
-  const structWeight     = totalCols * cw + mainBeamCount * mw + numSec * sw + numRaft * rw + bw;
+  const structWeight     = totalCols * cw + mainBeamCount * mw + numSec * sw + numRaft * rw + bw + lw;
   const roofMatWeight    = roof.weightPerSqM * roofArea;
   const totalWeight      = +(structWeight + roofMatWeight).toFixed(1);
   const weightPerFooting = totalCols > 0 ? +(totalWeight / totalCols).toFixed(1) : totalWeight;
   const liveLoad         = 50 * area;
   const designLoad       = +((totalWeight + liveLoad) * SAFETY_FACTOR).toFixed(1);
   const designPerFooting = totalCols > 0 ? +(designLoad / totalCols).toFixed(1) : designLoad;
+
+  // ── Deflection checks (δ = 5wL⁴/384EI vs L/200) ───────────────────────
+  const areaLoadKgM2 = roofArea > 0 ? designLoad / roofArea : 0;
+  const supportRows  = mainBeamCount + (isWall || isCorner ? 1 : 0); // beam rows + ledger
+  const mainTrib     = supportRows >= 3 ? widthM / (supportRows - 1) : widthM / 2;
+  const secSpanM     = widthM / Math.max(1, supportRows - 1);
+
+  const deflectionChecks = [
+    !isSuspended ? checkDeflection({
+      element: 'קורה ראשית', spanM: colSpacingL, tributaryM: mainTrib,
+      areaLoadKgM2, prof: mainProf, elasticMPa: mat.elasticModulus,
+    }) : null,
+    checkDeflection({
+      element: 'קורה משנית', spanM: secSpanM, tributaryM: secSpacing,
+      areaLoadKgM2, prof: secProf, elasticMPa: mat.elasticModulus,
+    }),
+    numRaft > 0 ? checkDeflection({
+      element: 'שלב/רפטר', spanM: secSpacing, tributaryM: raftSpacing || 0.2,
+      areaLoadKgM2, prof: raftProf, elasticMPa: mat.elasticModulus,
+    }) : null,
+  ].filter(Boolean);
+
+  for (const dc of deflectionChecks) {
+    if (!dc.ok) {
+      warnings.push(
+        `⚠ ${dc.element}: שקיעה חזויה ${dc.deflectionMM} מ"מ > מותר ${dc.limitMM} מ"מ (L/200) — בחר פרופיל גבוה יותר או הוסף תמיכה`
+      );
+    }
+  }
 
   // ── Hardware (spec §5.2) ───────────────────────────────────────────────
   const isW    = mat.category === 'wood';
@@ -555,7 +647,7 @@ export function calculatePergola(params) {
 
   // End caps — aluminium/steel only (spec §5.2)
   const numEndCaps = isAlum
-    ? countOpenEnds({ totalCols, mainBeamCount, numSec, numRaft, isWall })
+    ? countOpenEnds({ totalCols, mainBeamCount, numSec, numRaft, ledgerCount: ledgerLengthM > 0 ? 1 : 0 })
     : 0;
 
   // Sealant tubes (spec §5.2)
@@ -658,8 +750,11 @@ export function calculatePergola(params) {
   const columns3D = [];
   if (!isSuspended) {
     for (let row = 0; row < colRowsW; row++) {
-      const zFrac = colRowsW === 1 ? 1 : row / (colRowsW - 1);
-      const zPos  = isWall && colRowsW === 1 ? widthM : zFrac * widthM;
+      // Wall-mounted: the wall side (z=0) is carried by the ledger — never
+      // place columns there. Rows are distributed from the wall outwards.
+      const zPos = isWall || isCorner
+        ? widthM * ((row + 1) / colRowsW)
+        : (colRowsW === 1 ? widthM : (row / (colRowsW - 1)) * widthM);
       for (let c = 0; c < colsL; c++) {
         const xPos = colsL === 1 ? lengthM / 2 : (c / (colsL - 1)) * lengthM;
         columns3D.push({ x: xPos, y: 0, z: zPos, height: heightM });
@@ -669,12 +764,17 @@ export function calculatePergola(params) {
 
   const mainBeams3D = [];
   if (isWall || isCorner) {
-    mainBeams3D.push({ x: -overhangM, y: heightM + slopeHeightDiff, z: 0, length: totalRoofL, direction: 'x', isLedger: true });
+    // Ledger sits flush on the wall face: its centre is offset by half its
+    // own width so it does not penetrate the wall (z=0 is the wall plane).
+    mainBeams3D.push({ x: -overhangM, y: heightM + slopeHeightDiff, z: mainProf.w / 200, length: totalRoofL, direction: 'x', isLedger: true });
   }
   for (let row = 0; row < (isSuspended ? 2 : colRowsW); row++) {
+    // Beam rows follow the column rows exactly (wall side is the ledger).
     const zPos = isSuspended
       ? (row === 0 ? 0 : widthM)
-      : (isWall && colRowsW === 1 ? widthM : (colRowsW === 1 ? 1 : row / (colRowsW - 1)) * widthM);
+      : isWall || isCorner
+        ? widthM * ((row + 1) / colRowsW)
+        : (colRowsW === 1 ? widthM : (row / (colRowsW - 1)) * widthM);
     mainBeams3D.push({ x: -overhangM, y: heightM, z: zPos, length: totalRoofL, direction: 'x' });
   }
 
@@ -685,18 +785,22 @@ export function calculatePergola(params) {
   }
 
   const rafters3D = [];
+  // Against a wall, the first rafter/louver must clear the wall face by half
+  // its own width (louver = closed 160 mm blade), otherwise it penetrates it.
+  const raftHalfW = (roofType === 'louvers' ? 16 : raftProf.w) / 200;
+  const raftZ0    = (isWall || isCorner) ? raftHalfW : 0;
   for (let i = 0; i < numRaft; i++) {
     const zFrac = numRaft === 1 ? 0.5 : i / (numRaft - 1);
     rafters3D.push({
       x: -overhangM, y: heightM + mainProf.h / 100 + secProf.h / 100,
-      z: zFrac * widthM, length: totalRoofL, direction: 'x',
+      z: raftZ0 + zFrac * (widthM - raftZ0), length: totalRoofL, direction: 'x',
     });
   }
 
   const wall3D = isWall ? { x: 0, y: 0, z: 0, width: lengthM, height: heightM + 0.5 } : null;
 
   // ── Final result object ────────────────────────────────────────────────
-  return {
+  const result = {
     input: { ...params, length: lengthM, width: widthM, height: heightM },
     material: mat, roof, foundation, wind, finishData, wallData, gutter,
 
@@ -756,6 +860,8 @@ export function calculatePergola(params) {
       perimeterM: +perimeterM.toFixed(2),
     },
 
+    deflectionChecks,
+
     loads: {
       structuralWeight: +structWeight.toFixed(1), roofMaterialWeight: +roofMatWeight.toFixed(1),
       totalWeight, weightPerFooting, liveLoadPerSqM: 50, totalLiveLoad: +liveLoad.toFixed(1),
@@ -778,4 +884,12 @@ export function calculatePergola(params) {
 
     layout3D: { columns: columns3D, mainBeams: mainBeams3D, secBeams: secBeams3D, rafters: rafters3D, wall: wall3D },
   };
+
+  // ── Geometric clash detection (mirrors the 3D viewer placement) ────────
+  result.clashReport = detectClashes(result);
+  if (!result.clashReport.ok) {
+    result.warnings.push(...result.clashReport.warnings);
+  }
+
+  return result;
 }

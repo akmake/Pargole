@@ -105,36 +105,181 @@ function LouverSlat({ x, y, z, length, openPct = 0.5, color, category }) {
   );
 }
 
-// ─── Bracing diagonal ────────────────────────────────────────────────────────
-function BracingPair({ col, height, sw, color, category }) {
+// ─── Bracing diagonals ───────────────────────────────────────────────────────
+// Knee braces: lower end on the column face, upper end on the beam underside.
+// X braces stay inside the beam extents; the Z brace rises to a secondary
+// beam and is drawn only when one actually passes over this column.
+function BracingPair({ col, height, ySecB, beamMinX, beamMaxX, secXs, width, sw, color, category }) {
   const mat  = useMat(color, category);
   const leg  = 0.40;
   const len  = Math.sqrt(leg * leg + leg * leg);
   const ang  = Math.PI / 4;
   const w    = sw ?? 0.08;
 
+  const xDirs = [];
+  if (col.x + leg <= beamMaxX + 1e-6) xDirs.push(1);
+  if (col.x - leg >= beamMinX - 1e-6) xDirs.push(-1);
+
+  const hasSecAbove = secXs.some((x) => Math.abs(x - col.x) < 0.05);
+  const zDir = col.z < width / 2 ? 1 : -1;
+
   return (
     <group>
-      {/* X-axis brace */}
-      <mesh
-        position={[col.x + leg / 2, height - leg / 2, col.z]}
-        rotation={[0, 0, -ang]}
-        material={mat}
-        castShadow
-      >
-        <boxGeometry args={[len, w, w]} />
+      {xDirs.map((d) => (
+        <mesh
+          key={`x${d}`}
+          position={[col.x + d * leg / 2, height - leg / 2, col.z]}
+          rotation={[0, 0, ang * d]}
+          material={mat}
+          castShadow
+        >
+          <boxGeometry args={[len, w, w]} />
+        </mesh>
+      ))}
+      {hasSecAbove && (
+        <mesh
+          position={[col.x, ySecB - leg / 2, col.z + zDir * leg / 2]}
+          rotation={[-ang * zDir, 0, 0]}
+          material={mat}
+          castShadow
+        >
+          <boxGeometry args={[w, w, len]} />
+        </mesh>
+      )}
+    </group>
+  );
+}
+
+// ─── Side covering panel (glass / screen / lattice) ──────────────────────────
+const SIDE_STYLES = {
+  fixedGlass:       { color: '#BFE3F2', opacity: 0.22, metalness: 0.1, roughness: 0.05 },
+  slidingGlass:     { color: '#BFE3F2', opacity: 0.25, metalness: 0.1, roughness: 0.05 },
+  perforatedScreen: { color: '#6B7280', opacity: 0.55, metalness: 0.3, roughness: 0.6 },
+  woodScreen:       { color: '#9A7245', opacity: 0.90, metalness: 0.0, roughness: 0.8 },
+  fabricRollDown:   { color: '#E8DCC4', opacity: 0.85, metalness: 0.0, roughness: 0.9 },
+  lattice:          { color: '#8B6914', opacity: 0.45, metalness: 0.0, roughness: 0.8 },
+};
+
+function SidePanel({ side, type, length, width, height }) {
+  const style = SIDE_STYLES[type];
+  const mat = useMemo(() => style && new THREE.MeshPhysicalMaterial({
+    color: style.color, transparent: true, opacity: style.opacity,
+    metalness: style.metalness, roughness: style.roughness, side: THREE.DoubleSide,
+  }), [style]);
+  if (!style) return null;
+
+  const t = 0.02, h = height - 0.05;
+  // side planes sit just inside the column lines
+  const cfg = {
+    back:  { pos: [length / 2, h / 2, t],          size: [length - 0.1, h, t] },
+    front: { pos: [length / 2, h / 2, width - t],  size: [length - 0.1, h, t] },
+    left:  { pos: [t, h / 2, width / 2],           size: [t, h, width - 0.1] },
+    right: { pos: [length - t, h / 2, width / 2],  size: [t, h, width - 0.1] },
+  }[side];
+  if (!cfg) return null;
+
+  return (
+    <mesh position={cfg.pos} material={mat} castShadow>
+      <boxGeometry args={cfg.size} />
+    </mesh>
+  );
+}
+
+// ─── Gutter (drainage channel along the low edge) ────────────────────────────
+function Gutter({ x, z, length, y }) {
+  const mat = useMemo(() => new THREE.MeshStandardMaterial({ color: '#7A7A7A', metalness: 0.7, roughness: 0.35 }), []);
+  return (
+    <group>
+      <mesh position={[x + length / 2, y, z + 0.07]} material={mat} castShadow>
+        <boxGeometry args={[length, 0.09, 0.11]} />
       </mesh>
-      {/* Z-axis brace */}
-      <mesh
-        position={[col.x, height - leg / 2, col.z + leg / 2]}
-        rotation={[ang, 0, 0]}
-        material={mat}
-        castShadow
-      >
-        <boxGeometry args={[w, w, len]} />
+      {/* downspout at the far corner */}
+      <mesh position={[x + length - 0.06, y / 2, z + 0.07]} material={mat}>
+        <cylinderGeometry args={[0.035, 0.035, y, 10]} />
       </mesh>
     </group>
   );
+}
+
+// ─── Lighting fixtures ───────────────────────────────────────────────────────
+function LightFixtures({ type, length, width, yMain }) {
+  const bulbMat = useMemo(() => new THREE.MeshStandardMaterial({
+    color: '#FFF3C4', emissive: '#FFD966', emissiveIntensity: 1.6,
+  }), []);
+  const cordMat = useMemo(() => new THREE.MeshStandardMaterial({ color: '#222' }), []);
+  const stripMat = useMemo(() => new THREE.MeshStandardMaterial({
+    color: '#FFF8E1', emissive: '#FFE082', emissiveIntensity: 2.2,
+  }), []);
+
+  if (!type || type === 'none') return null;
+
+  if (type === 'ledStrip') {
+    return (
+      <group>
+        {[0.08, width - 0.08].map((z, i) => (
+          <mesh key={i} position={[length / 2, yMain - 0.015, z]} material={stripMat}>
+            <boxGeometry args={[length - 0.2, 0.012, 0.03]} />
+          </mesh>
+        ))}
+      </group>
+    );
+  }
+
+  if (type === 'spotlights') {
+    const n = Math.max(2, Math.round(length / 1.2));
+    return (
+      <group>
+        {Array.from({ length: n }, (_, i) => {
+          const x = ((i + 0.5) / n) * length;
+          return [0.3, width - 0.3].map((z, j) => (
+            <mesh key={`${i}-${j}`} position={[x, yMain - 0.03, z]} material={bulbMat}>
+              <cylinderGeometry args={[0.045, 0.055, 0.05, 12]} />
+            </mesh>
+          ));
+        })}
+      </group>
+    );
+  }
+
+  if (type === 'pendants') {
+    const n = Math.max(2, Math.round(length / 1.6));
+    return (
+      <group>
+        {Array.from({ length: n }, (_, i) => {
+          const x = ((i + 0.5) / n) * length;
+          return (
+            <group key={i} position={[x, 0, width / 2]}>
+              <mesh position={[0, yMain - 0.2, 0]} material={cordMat}>
+                <cylinderGeometry args={[0.006, 0.006, 0.4, 6]} />
+              </mesh>
+              <mesh position={[0, yMain - 0.42, 0]} material={bulbMat}>
+                <sphereGeometry args={[0.07, 14, 14]} />
+              </mesh>
+            </group>
+          );
+        })}
+      </group>
+    );
+  }
+
+  if (type === 'stringLights') {
+    const n = Math.max(6, Math.round(length / 0.45));
+    return (
+      <group>
+        {Array.from({ length: n }, (_, i) => {
+          const t = (i + 0.5) / n;
+          const sag = Math.sin(t * Math.PI * 3) * 0.06 + 0.12;
+          return (
+            <mesh key={i} position={[t * length, yMain - sag, width / 2]} material={bulbMat}>
+              <sphereGeometry args={[0.028, 10, 10]} />
+            </mesh>
+          );
+        })}
+      </group>
+    );
+  }
+
+  return null;
 }
 
 // ─── Wall ────────────────────────────────────────────────────────────────────
@@ -324,10 +469,27 @@ function PergolaScene({ result, showDims, showGrid, louverOpen }) {
         />
       )}
 
+      {/* ── Side coverings ───────────────────────────────────────── */}
+      {input.sides && Object.entries(input.sides).map(([side, type]) =>
+        type && type !== 'none' ? (
+          <SidePanel key={`side-${side}`} side={side} type={type} length={length} width={width} height={height} />
+        ) : null
+      )}
+
+      {/* ── Gutter ───────────────────────────────────────────────── */}
+      {input.gutterType && input.gutterType !== 'none' && (
+        <Gutter x={roofX} z={width} length={roofLen} y={yMain} />
+      )}
+
+      {/* ── Lighting fixtures ────────────────────────────────────── */}
+      <LightFixtures type={input.lightingOption} length={length} width={width} yMain={yMain} />
+
       {/* ── Bracing ──────────────────────────────────────────────── */}
       {bracing?.required && layout3D.columns.map((col, i) => (
         <BracingPair key={`br-${i}`}
-          col={col} height={height}
+          col={col} height={height} ySecB={ySecB}
+          beamMinX={-structure.overhangM} beamMaxX={length + structure.overhangM}
+          secXs={layout3D.secBeams.map((b) => b.x)} width={width}
           sw={colW * 0.8} color={color} category={cat}
         />
       ))}

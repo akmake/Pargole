@@ -247,7 +247,7 @@ export default function PergolaConfigurator({ params, onChange, result }) {
         <Section icon={Sun} title="הצללה" defaultOpen={false}>
           <NumberInput
             label="אחוז הצללה מבוקש"
-            value={params.desiredShadePct || (ROOF_TYPES[params.roofType]?.shadeFactor * 100 ?? 55)}
+            value={params.desiredShadePct || (ROOF_TYPES[params.roofType]?.shadeFactor ?? 0.55) * 100}
             onChange={v => set('desiredShadePct', v)}
             min={20} max={90} step={5} unit="%"
           />

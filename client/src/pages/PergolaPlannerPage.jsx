@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   Hammer, Eye, ClipboardList, BarChart3, Download, RotateCcw,
   SlidersHorizontal, X, ChevronUp, Share2, Sparkles, Check, ArrowRight, Save,
+  DraftingCompass,
 } from 'lucide-react';
 import { calculatePergola } from '@/utils/pergolaEngine';
 import { calcTotalPrice, formatCurrency } from '@/utils/pergolaPrice';
@@ -12,6 +13,7 @@ import PergolaConfigurator from '@/components/pergola/PergolaConfigurator';
 import CutList from '@/components/pergola/CutList';
 import MaterialSummary from '@/components/pergola/MaterialSummary';
 import PergolaViewer3D from '@/components/pergola/PergolaViewer3D';
+import Pergola2DPlan from '@/components/pergola/Pergola2DPlan';
 import { useProjectStore } from '@/stores/projectStore';
 
 const DEFAULT_PARAMS = {
@@ -331,6 +333,7 @@ export default function PergolaPlannerPage() {
               <div className="flex items-center gap-1 bg-gray-100 rounded-xl p-1 w-fit">
                 {[
                   { id: '3d',      label: 'תצוגה 3D',      icon: Eye },
+                  { id: 'plan',    label: 'תוכנית 2D',     icon: DraftingCompass },
                   { id: 'cutlist', label: 'רשימת חיתוך',   icon: ClipboardList },
                   { id: 'summary', label: 'סיכום ותמחור',  icon: BarChart3 },
                 ].map(t => (
@@ -370,6 +373,11 @@ export default function PergolaPlannerPage() {
                       <StatPill label="משקל"        value={`${result.loads.totalWeight} kg`} />
                     </div>
                   )}
+                </div>
+              )}
+              {activeView === 'plan' && (
+                <div className="bg-white rounded-2xl border border-gray-200 p-5">
+                  <Pergola2DPlan result={result} name={pergolaName || `פרגולה ${params.length}×${params.width}`} />
                 </div>
               )}
               {activeView === 'cutlist' && (
@@ -455,6 +463,12 @@ export default function PergolaPlannerPage() {
           </>
         )}
 
+        {activeView === 'plan' && (
+          <div className="bg-white rounded-2xl p-4 shadow-sm">
+            <Pergola2DPlan result={result} name={pergolaName || `פרגולה ${params.length}×${params.width}`} />
+          </div>
+        )}
+
         {activeView === 'cutlist' && (
           <div className="bg-white rounded-2xl p-4 shadow-sm">
             <CutList result={result} />
@@ -485,8 +499,9 @@ export default function PergolaPlannerPage() {
       {/* Bottom nav */}
       <nav className="fixed bottom-0 inset-x-0 z-30 bg-white border-t border-gray-200">
         <div className="flex items-center justify-around px-2 py-1">
-          <TabBtn icon={Eye}           label="3D"      active={activeView === '3d'}      onClick={() => setActiveView('3d')} />
-          <TabBtn icon={ClipboardList} label="חיתוך"  active={activeView === 'cutlist'} onClick={() => setActiveView('cutlist')} />
+          <TabBtn icon={Eye}              label="3D"      active={activeView === '3d'}      onClick={() => setActiveView('3d')} />
+          <TabBtn icon={DraftingCompass}  label="תוכנית" active={activeView === 'plan'}    onClick={() => setActiveView('plan')} />
+          <TabBtn icon={ClipboardList}    label="חיתוך"  active={activeView === 'cutlist'} onClick={() => setActiveView('cutlist')} />
           <TabBtn icon={BarChart3}     label="סיכום"   active={activeView === 'summary'} onClick={() => setActiveView('summary')} />
           <div className="h-8 w-px bg-gray-200" />
           <TabBtn
