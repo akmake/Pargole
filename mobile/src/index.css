@@ -1,0 +1,82 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  font-family: 'Assistant', 'Segoe UI', sans-serif;
+  color: #111827;
+  background-color: #ffffff;
+
+  /* ── shadcn/ui design tokens ────────────────────────────────── */
+  --background: 0 0% 100%;
+  --foreground: 222.2 84% 4.9%;
+
+  --card: 0 0% 100%;
+  --card-foreground: 222.2 84% 4.9%;
+
+  --popover: 0 0% 100%;
+  --popover-foreground: 222.2 84% 4.9%;
+
+  --primary: 222.2 47.4% 11.2%;
+  --primary-foreground: 210 40% 98%;
+
+  --secondary: 210 40% 96.1%;
+  --secondary-foreground: 222.2 47.4% 11.2%;
+
+  --muted: 210 40% 96.1%;
+  --muted-foreground: 215.4 16.3% 46.9%;
+
+  --accent: 210 40% 96.1%;
+  --accent-foreground: 222.2 47.4% 11.2%;
+
+  --destructive: 0 84.2% 60.2%;
+  --destructive-foreground: 210 40% 98%;
+
+  --border: 214.3 31.8% 91.4%;
+  --input: 214.3 31.8% 91.4%;
+  --ring: 142.1 76.2% 36.3%;
+  --radius: 0.5rem;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  direction: rtl;
+}
+
+body,
+#root {
+  margin: 0;
+  min-height: 100vh;
+  /* dvh tracks the visible viewport as the mobile browser/keyboard UI changes */
+  min-height: 100dvh;
+}
+
+body {
+  background: #ffffff;
+  /* App-like feel inside the native WebView */
+  -webkit-tap-highlight-color: transparent;   /* no grey flash on tap */
+  -webkit-touch-callout: none;                 /* no long-press callout */
+  overscroll-behavior-y: none;                 /* no rubber-band / pull glow */
+}
+
+/* Allow text selection where it actually matters (results, inputs) */
+input,
+textarea,
+[contenteditable] {
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+/* ── Safe-area helpers (status bar / notch / gesture nav) ──────────────────
+   viewport-fit=cover exposes env(safe-area-inset-*). On iOS this clears the
+   notch/home-indicator; on Android our theme keeps the bars opaque so these
+   resolve to ~0 but remain correct if edge-to-edge is ever re-enabled. */
+.pt-safe   { padding-top:    max(env(safe-area-inset-top), 0px); }
+.pb-safe   { padding-bottom: max(env(safe-area-inset-bottom), 0px); }
+.mt-safe   { margin-top:     max(env(safe-area-inset-top), 0px); }
+.mb-safe   { margin-bottom:  max(env(safe-area-inset-bottom), 0px); }
+/* Adds the inset ON TOP of an existing spacing value */
+.pb-safe-nav { padding-bottom: calc(0.25rem + env(safe-area-inset-bottom)); }

@@ -1,0 +1,21 @@
+{
+  "appId": "com.pergocalc.app",
+  "appName": "PergoCalc",
+  "webDir": "dist",
+  "server": {
+    "androidScheme": "https"
+  },
+  "android": {
+    "allowMixedContent": false
+  },
+  "ios": {
+    "contentInset": "always"
+  },
+  "plugins": {
+    "SplashScreen": {
+      "launchShowDuration": 800,
+      "backgroundColor": "#059669",
+      "showSpinner": false
+    }
+  }
+}

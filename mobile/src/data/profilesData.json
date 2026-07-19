@@ -1,0 +1,160 @@
+{
+  "_note": "קובץ זה מחכה לנתוני יצרן. יש למלא את שדות null לפני שימוש בבדיקת Deflection.",
+  "_source": "יצרן האלומיניום/עץ — טבלת עומסים רשמית (PDF שיועלה על ידי הלקוח)",
+  "_status": "INCOMPLETE — awaiting manufacturer load tables",
+  "_fields_explanation": {
+    "max_span_m": "מפתח מקסימלי למרכז בין תמיכות (מטר), ל-UDL מוגדר",
+    "max_udl_kg_per_m": "עומס אחיד מרבי (kg/m) בו נקבע max_span_m",
+    "allowable_deflection_ratio": "יחס שקיעה מותרת: span/L (ערך טיפוסי: 360)",
+    "weight_per_meter_kg": "משקל עצמי (ק\"ג/מ')",
+    "moment_of_inertia_cm4": "מומנט אינרציה I (ס\"מ⁴)",
+    "bending_strength_mpa": "גבול כפיפה מותר (MPa)"
+  },
+  "aluminum_6063_T5": {
+    "50x100x2": {
+      "profile_id": "50x100x2",
+      "label": "50×100×2 מ\"מ (אלומיניום)",
+      "width_mm": 50, "height_mm": 100, "thickness_mm": 2,
+      "weight_per_meter_kg": 2.4,
+      "moment_of_inertia_cm4": 333,
+      "bending_strength_mpa": 160,
+      "elastic_modulus_mpa": 69000,
+      "max_span_m": null,
+      "max_udl_kg_per_m": null,
+      "allowable_deflection_ratio": 360,
+      "note": "MISSING — upload manufacturer table"
+    },
+    "50x100x3": {
+      "profile_id": "50x100x3",
+      "label": "50×100×3 מ\"מ (אלומיניום)",
+      "width_mm": 50, "height_mm": 100, "thickness_mm": 3,
+      "weight_per_meter_kg": 3.4,
+      "moment_of_inertia_cm4": 470,
+      "bending_strength_mpa": 160,
+      "elastic_modulus_mpa": 69000,
+      "max_span_m": null,
+      "max_udl_kg_per_m": null,
+      "allowable_deflection_ratio": 360,
+      "note": "MISSING — upload manufacturer table"
+    },
+    "50x150x2": {
+      "profile_id": "50x150x2",
+      "label": "50×150×2 מ\"מ (אלומיניום)",
+      "width_mm": 50, "height_mm": 150, "thickness_mm": 2,
+      "weight_per_meter_kg": 3.2,
+      "moment_of_inertia_cm4": 1125,
+      "bending_strength_mpa": 160,
+      "elastic_modulus_mpa": 69000,
+      "max_span_m": null,
+      "max_udl_kg_per_m": null,
+      "allowable_deflection_ratio": 360,
+      "note": "MISSING — upload manufacturer table"
+    },
+    "50x200x2": {
+      "profile_id": "50x200x2",
+      "label": "50×200×2 מ\"מ (אלומיניום)",
+      "width_mm": 50, "height_mm": 200, "thickness_mm": 2,
+      "weight_per_meter_kg": 4.5,
+      "moment_of_inertia_cm4": 2667,
+      "bending_strength_mpa": 160,
+      "elastic_modulus_mpa": 69000,
+      "max_span_m": null,
+      "max_udl_kg_per_m": null,
+      "allowable_deflection_ratio": 360,
+      "note": "MISSING — upload manufacturer table"
+    },
+    "50x200x3": {
+      "profile_id": "50x200x3",
+      "label": "50×200×3 מ\"מ (אלומיניום)",
+      "width_mm": 50, "height_mm": 200, "thickness_mm": 3,
+      "weight_per_meter_kg": 6.2,
+      "moment_of_inertia_cm4": 3800,
+      "bending_strength_mpa": 160,
+      "elastic_modulus_mpa": 69000,
+      "max_span_m": null,
+      "max_udl_kg_per_m": null,
+      "allowable_deflection_ratio": 360,
+      "note": "MISSING — upload manufacturer table"
+    },
+    "100x100x3": {
+      "profile_id": "100x100x3",
+      "label": "100×100×3 מ\"מ עמוד (אלומיניום)",
+      "width_mm": 100, "height_mm": 100, "thickness_mm": 3,
+      "weight_per_meter_kg": 3.6,
+      "moment_of_inertia_cm4": 833,
+      "bending_strength_mpa": 160,
+      "elastic_modulus_mpa": 69000,
+      "max_span_m": null,
+      "max_udl_kg_per_m": null,
+      "allowable_deflection_ratio": 360,
+      "note": "MISSING — upload manufacturer table"
+    },
+    "150x150x3": {
+      "profile_id": "150x150x3",
+      "label": "150×150×3 מ\"מ עמוד (אלומיניום)",
+      "width_mm": 150, "height_mm": 150, "thickness_mm": 3,
+      "weight_per_meter_kg": 7.2,
+      "moment_of_inertia_cm4": 4219,
+      "bending_strength_mpa": 160,
+      "elastic_modulus_mpa": 69000,
+      "max_span_m": null,
+      "max_udl_kg_per_m": null,
+      "allowable_deflection_ratio": 360,
+      "note": "MISSING — upload manufacturer table"
+    }
+  },
+  "pine_C24": {
+    "5x10": {
+      "profile_id": "5x10",
+      "label": "5×10 ס\"מ (אורן C24)",
+      "width_mm": 50, "height_mm": 100, "thickness_mm": 50,
+      "weight_per_meter_kg": 2.8,
+      "moment_of_inertia_cm4": 417,
+      "bending_strength_mpa": 24,
+      "elastic_modulus_mpa": 11000,
+      "max_span_m": null,
+      "max_udl_kg_per_m": null,
+      "allowable_deflection_ratio": 300,
+      "note": "MISSING — upload span table"
+    },
+    "5x15": {
+      "profile_id": "5x15",
+      "label": "5×15 ס\"מ (אורן C24)",
+      "width_mm": 50, "height_mm": 150, "thickness_mm": 50,
+      "weight_per_meter_kg": 4.1,
+      "moment_of_inertia_cm4": 1406,
+      "bending_strength_mpa": 24,
+      "elastic_modulus_mpa": 11000,
+      "max_span_m": null,
+      "max_udl_kg_per_m": null,
+      "allowable_deflection_ratio": 300,
+      "note": "MISSING — upload span table"
+    },
+    "10x10": {
+      "profile_id": "10x10",
+      "label": "10×10 ס\"מ (אורן C24)",
+      "width_mm": 100, "height_mm": 100, "thickness_mm": 100,
+      "weight_per_meter_kg": 5.5,
+      "moment_of_inertia_cm4": 833,
+      "bending_strength_mpa": 24,
+      "elastic_modulus_mpa": 11000,
+      "max_span_m": null,
+      "max_udl_kg_per_m": null,
+      "allowable_deflection_ratio": 300,
+      "note": "MISSING — upload span table"
+    },
+    "10x15": {
+      "profile_id": "10x15",
+      "label": "10×15 ס\"מ (אורן C24)",
+      "width_mm": 100, "height_mm": 150, "thickness_mm": 100,
+      "weight_per_meter_kg": 8.3,
+      "moment_of_inertia_cm4": 2813,
+      "bending_strength_mpa": 24,
+      "elastic_modulus_mpa": 11000,
+      "max_span_m": null,
+      "max_udl_kg_per_m": null,
+      "allowable_deflection_ratio": 300,
+      "note": "MISSING — upload span table"
+    }
+  }
+}
