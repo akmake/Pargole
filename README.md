@@ -1,3 +1,23 @@
+# Pargole
+
+Repository for **Pargole**.
+
+## Repository layout
+
+- `client` — frontend.
+- `server` — backend.
+- `mobile` — mobile application.
+- `docs` — documentation.
+
+## Package scripts
+
+- `npm run dev`: `concurrently "npm --prefix server run dev" "npm --prefix client run dev"`
+- `npm run dev:server`: `npm --prefix server run dev`
+- `npm run dev:client`: `npm --prefix client run dev`
+- `npm run build`: `npm --prefix client run build`
+
+## Existing documentation
+
 # MyVisit (Clean Base)
 
 This repository keeps the original `client` and `server` structure,
@@ -30,3 +50,4 @@ ODA_FILE_CONVERTER_PATH=C:\Program Files\ODA\ODAFileConverter\ODAFileConverter.e
 ```
 
 If ODA is installed in the default path above, the server will pick it up automatically.
+
